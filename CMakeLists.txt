@@ -14,14 +14,6 @@ find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets)
 
 qt_add_executable(QtCameraSimple
     main.cpp
-    irsensor.cpp
-    irsensor.h
-    gui.cpp
-    gui.h
-    video_stream.cpp
-    video_stream.h
-    data_processing.cpp
-    data_processing.h
 )
 
 target_link_libraries(QtCameraSimple PRIVATE Qt6::Widgets)
