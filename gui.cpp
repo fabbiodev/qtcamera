@@ -4,28 +4,22 @@
 #include <QVBoxLayout>
 
 Gui::Gui(QWidget *parent)
-    : QWidget(parent)
+    : QWidget(parent), status_(new QLabel(this)), frame_(new QLabel(this))
 {
     setWindowTitle(QStringLiteral("RAW camera"));
     resize(420, 120);
-
+    status_->setText(QStringLiteral("Camera: starting..."));
+    frame_->setText(QStringLiteral("No frame received"));
     auto *layout = new QVBoxLayout(this);
-    statusLabel_ = new QLabel(QStringLiteral("Camera: starting..."), this);
-    frameLabel_ = new QLabel(QStringLiteral("No frame received"), this);
-
-    layout->addWidget(statusLabel_);
-    layout->addWidget(frameLabel_);
+    layout->addWidget(status_);
+    layout->addWidget(frame_);
 }
 
-void Gui::setCameraStatus(const QString &status)
-{
-    statusLabel_->setText(status);
-}
+void Gui::setCameraStatus(const QString &text) { status_->setText(text); }
 
-void Gui::showFrame(std::size_t byteCount, std::size_t frameNumber)
+void Gui::showFrame(std::size_t bytes, std::size_t number)
 {
-    frameLabel_->setText(
-        QStringLiteral("Frame %1, %2 RAW bytes")
-            .arg(static_cast<qulonglong>(frameNumber))
-            .arg(static_cast<qulonglong>(byteCount)));
+    frame_->setText(QStringLiteral("Frame %1, %2 RAW bytes")
+                        .arg(static_cast<qulonglong>(number))
+                        .arg(static_cast<qulonglong>(bytes)));
 }

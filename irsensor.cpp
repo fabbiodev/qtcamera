@@ -9,191 +9,109 @@
 #include <unistd.h>
 
 namespace {
-
 constexpr unsigned int kBufferCount = 4;
-constexpr int kUsefulWidth = 256;
-constexpr int kBufferHeight = 196;
-
-} // namespace
-
-IRSensor::~IRSensor()
-{
-    stop();
+constexpr int kWidth = 256;
+constexpr int kHeight = 196;
 }
 
-void IRSensor::setError(const std::string &message)
-{
-    lastError_ = message + ": " + std::strerror(errno);
-}
+IRSensor::~IRSensor() { stop(); }
 
-bool IRSensor::ioctl(unsigned long request, void *argument) const
+bool IRSensor::call(unsigned long request, void *arg) const
 {
     int result;
-    do {
-        result = ::ioctl(fd_, request, argument);
-    } while (result == -1 && errno == EINTR);
-
+    do { result = ::ioctl(fd_, request, arg); } while (result == -1 && errno == EINTR);
     return result == 0;
 }
 
-bool IRSensor::configureRawFormat()
+void IRSensor::fail(const char *message)
 {
-    v4l2_format format{};
-    format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    format.fmt.pix.width = kUsefulWidth;
-    format.fmt.pix.height = kBufferHeight;
-    format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
-    format.fmt.pix.field = V4L2_FIELD_NONE;
-
-    if (!ioctl(VIDIOC_S_FMT, &format)) {
-        setError("VIDIOC_S_FMT failed");
-        return false;
-    }
-
-    frameWidth_ = static_cast<int>(format.fmt.pix.width);
-    frameHeight_ = static_cast<int>(format.fmt.pix.height);
-    return true;
+    error_ = std::string(message) + ": " + std::strerror(errno);
 }
 
-bool IRSensor::mapBuffers()
-{
-    v4l2_requestbuffers request{};
-    request.count = kBufferCount;
-    request.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    request.memory = V4L2_MEMORY_MMAP;
-
-    if (!ioctl(VIDIOC_REQBUFS, &request) || request.count == 0) {
-        setError("VIDIOC_REQBUFS failed");
-        return false;
-    }
-
-    buffers_.resize(request.count);
-
-    for (std::size_t index = 0; index < buffers_.size(); ++index) {
-        v4l2_buffer buffer{};
-        buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        buffer.memory = V4L2_MEMORY_MMAP;
-        buffer.index = static_cast<__u32>(index);
-
-        if (!ioctl(VIDIOC_QUERYBUF, &buffer)) {
-            setError("VIDIOC_QUERYBUF failed");
-            return false;
-        }
-
-        void *mapped = ::mmap(nullptr,
-                              buffer.length,
-                              PROT_READ | PROT_WRITE,
-                              MAP_SHARED,
-                              fd_,
-                              static_cast<off_t>(buffer.m.offset));
-        if (mapped == MAP_FAILED) {
-            setError("mmap failed");
-            return false;
-        }
-
-        buffers_[index] = {mapped, buffer.length};
-    }
-
-    return true;
-}
-
-bool IRSensor::queueBuffer(std::size_t index)
+bool IRSensor::queue(std::size_t index)
 {
     v4l2_buffer buffer{};
     buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     buffer.memory = V4L2_MEMORY_MMAP;
     buffer.index = static_cast<__u32>(index);
-
-    if (!ioctl(VIDIOC_QBUF, &buffer)) {
-        setError("VIDIOC_QBUF failed");
-        return false;
-    }
-
+    if (!call(VIDIOC_QBUF, &buffer)) { fail("VIDIOC_QBUF failed"); return false; }
     return true;
 }
 
-bool IRSensor::start(const std::string &devicePath)
+bool IRSensor::start(const std::string &device)
 {
     stop();
-    lastError_.clear();
+    error_.clear();
+    fd_ = ::open(device.c_str(), O_RDWR | O_NONBLOCK);
+    if (fd_ < 0) { fail("Cannot open camera"); return false; }
 
-    fd_ = ::open(devicePath.c_str(), O_RDWR | O_NONBLOCK);
-    if (fd_ < 0) {
-        setError("Cannot open " + devicePath);
-        return false;
+    v4l2_format format{};
+    format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    format.fmt.pix.width = kWidth;
+    format.fmt.pix.height = kHeight;
+    format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+    format.fmt.pix.field = V4L2_FIELD_NONE;
+    if (!call(VIDIOC_S_FMT, &format)) { fail("VIDIOC_S_FMT failed"); stop(); return false; }
+    width_ = static_cast<int>(format.fmt.pix.width);
+    height_ = static_cast<int>(format.fmt.pix.height);
+
+    v4l2_requestbuffers request{};
+    request.count = kBufferCount;
+    request.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    request.memory = V4L2_MEMORY_MMAP;
+    if (!call(VIDIOC_REQBUFS, &request) || request.count == 0) {
+        fail("VIDIOC_REQBUFS failed"); stop(); return false;
     }
 
-    if (!configureRawFormat() || !mapBuffers()) {
-        stop();
-        return false;
-    }
-
-    for (std::size_t index = 0; index < buffers_.size(); ++index) {
-        if (!queueBuffer(index)) {
-            stop();
-            return false;
-        }
+    buffers_.resize(request.count);
+    for (std::size_t i = 0; i < buffers_.size(); ++i) {
+        v4l2_buffer buffer{};
+        buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        buffer.memory = V4L2_MEMORY_MMAP;
+        buffer.index = static_cast<__u32>(i);
+        if (!call(VIDIOC_QUERYBUF, &buffer)) { fail("VIDIOC_QUERYBUF failed"); stop(); return false; }
+        void *data = ::mmap(nullptr, buffer.length, PROT_READ | PROT_WRITE,
+                            MAP_SHARED, fd_, buffer.m.offset);
+        if (data == MAP_FAILED) { fail("mmap failed"); stop(); return false; }
+        buffers_[i] = {data, buffer.length};
+        if (!queue(i)) { stop(); return false; }
     }
 
     int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    if (!ioctl(VIDIOC_STREAMON, &type)) {
-        setError("VIDIOC_STREAMON failed");
-        stop();
-        return false;
-    }
-
+    if (!call(VIDIOC_STREAMON, &type)) { fail("VIDIOC_STREAMON failed"); stop(); return false; }
     return true;
 }
 
 bool IRSensor::readFrame(RawFrame &frame)
 {
-    if (fd_ < 0 || buffers_.empty()) {
-        return false;
-    }
-
+    if (fd_ < 0) return false;
     v4l2_buffer buffer{};
     buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     buffer.memory = V4L2_MEMORY_MMAP;
-
-    if (!ioctl(VIDIOC_DQBUF, &buffer)) {
-        if (errno == EAGAIN) {
-            return false;
-        }
-
-        setError("VIDIOC_DQBUF failed");
+    if (!call(VIDIOC_DQBUF, &buffer)) {
+        if (errno == EAGAIN) return false;
+        fail("VIDIOC_DQBUF failed");
         return false;
     }
-
-    if (buffer.index >= buffers_.size()) {
-        setError("Camera returned an invalid buffer index");
-        return false;
-    }
-
-    const auto *begin = static_cast<const std::uint8_t *>(buffers_[buffer.index].data);
-    frame.assign(begin, begin + buffer.bytesused);
-    return queueBuffer(buffer.index);
+    if (buffer.index >= buffers_.size()) { fail("Invalid camera buffer index"); return false; }
+    const auto *data = static_cast<const std::uint8_t *>(buffers_[buffer.index].data);
+    frame.assign(data, data + buffer.bytesused);
+    return queue(buffer.index);
 }
 
-void IRSensor::unmapBuffers()
+void IRSensor::releaseBuffers()
 {
-    for (const Buffer &buffer : buffers_) {
-        if (buffer.data != nullptr && buffer.data != MAP_FAILED) {
-            ::munmap(buffer.data, buffer.size);
-        }
-    }
-
+    for (const Buffer &buffer : buffers_)
+        if (buffer.data) ::munmap(buffer.data, buffer.size);
     buffers_.clear();
 }
 
 void IRSensor::stop()
 {
-    if (fd_ < 0) {
-        return;
-    }
-
+    if (fd_ < 0) return;
     int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     ::ioctl(fd_, VIDIOC_STREAMOFF, &type);
-    unmapBuffers();
+    releaseBuffers();
     ::close(fd_);
     fd_ = -1;
 }

@@ -1,5 +1,5 @@
 #pragma once
-#include <cstddef>
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -8,37 +8,23 @@ class IRSensor
 {
 public:
     using RawFrame = std::vector<std::uint8_t>;
-
-    IRSensor() = default;
     ~IRSensor();
-
-    IRSensor(const IRSensor &) = delete;
-    IRSensor &operator=(const IRSensor &) = delete;
-
-    bool start(const std::string &devicePath = "/dev/video0");
+    bool start(const std::string &device = "/dev/video0");
     bool readFrame(RawFrame &frame);
     void stop();
-
-    int width() const { return frameWidth_; }
-    int height() const { return frameHeight_; }
-    const std::string &lastError() const { return lastError_; }
+    int width() const { return width_; }
+    int height() const { return height_; }
+    const std::string &error() const { return error_; }
 
 private:
-    struct Buffer {
-        void *data = nullptr;
-        std::size_t size = 0;
-    };
-
-    bool configureRawFormat();
-    bool mapBuffers();
-    bool queueBuffer(std::size_t index);
-    bool ioctl(unsigned long request, void *argument) const;
-    void unmapBuffers();
-    void setError(const std::string &message);
-
+    struct Buffer { void *data{}; std::size_t size{}; };
+    bool call(unsigned long request, void *arg) const;
+    bool queue(std::size_t index);
+    void fail(const char *message);
+    void releaseBuffers();
     int fd_ = -1;
-    int frameWidth_ = 256;
-    int frameHeight_ = 196;
+    int width_ = 256;
+    int height_ = 196;
     std::vector<Buffer> buffers_;
-    std::string lastError_;
+    std::string error_;
 };

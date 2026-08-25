@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QWidget>
-
 #include <cstddef>
 
 class QLabel;
@@ -10,11 +9,10 @@ class Gui final : public QWidget
 {
 public:
     explicit Gui(QWidget *parent = nullptr);
-
-    void setCameraStatus(const QString &status);
-    void showFrame(std::size_t byteCount, std::size_t frameNumber);
+    void setCameraStatus(const QString &text);
+    void showFrame(std::size_t bytes, std::size_t number);
 
 private:
-    QLabel *statusLabel_ = nullptr;
-    QLabel *frameLabel_ = nullptr;
+    QLabel *status_;
+    QLabel *frame_;
 };
