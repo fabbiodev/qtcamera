@@ -3,3 +3,4 @@ build/
 .vscode/
 *.user
 *.pro.user
+.claude/
