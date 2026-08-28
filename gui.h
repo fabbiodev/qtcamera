@@ -1,15 +1,10 @@
 #pragma once
 
-#include <cstddef>
-
+#include <QImage>
 #include <QString>
 
-// Интерфейс без класса окна: свободные функции в пространстве имён Gui.
-// Сами виджеты создаются и хранятся внутри gui.cpp.
-namespace Gui {
+#include <cstddef>
 
-void create();                                          // создать и показать окно
-void setCameraStatus(const QString &text);              // обновить строку состояния камеры
-void showFrame(std::size_t bytes, std::size_t number);  // показать данные о новом кадре
-
-} // namespace Gui
+void guiCreate();
+void guiSetCameraStatus(const QString &text);
+void guiShowFrame(const QImage &image, std::size_t bytes, std::size_t number);

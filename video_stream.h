@@ -2,10 +2,8 @@
 
 #include "irsensor.h"
 
-// VideoStream отвечает за создание и обработку видеопотока из сырых кадров.
-// Пока это заготовка: функция принимает кадр, но ничего с ним не делает.
-namespace VideoStream {
+// Создание и обработка видеопотока из сырых кадров. Без класса и без namespace:
+// одна свободная функция с префиксом videoStream. Пока это заготовка: функция
+// принимает кадр, но ничего с ним не делает.
 
-void submitRawFrame(const IRSensor::RawFrame &frame);   // передать сырой кадр в видеопоток
-
-} // namespace VideoStream
+void videoStreamSubmitRawFrame(const RawFrame &frame);  // передать сырой кадр в видеопоток

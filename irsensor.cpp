@@ -8,8 +8,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-namespace {
-
+// Константы модуля. constexpr на уровне файла уже имеет внутреннюю связь,
+// поэтому namespace не нужен.
 constexpr int kBufferCount = 4;                         // сколько буферов просим у драйвера
 constexpr int kFrameWidth = 256;                        // ширина полезной части кадра
 constexpr int kFrameRows = 196;                         // полная высота буфера камеры
@@ -20,15 +20,16 @@ struct Buffer {
     std::size_t size = 0;                               // размер выделенной области
 };
 
-// Внутреннее состояние модуля вместо полей класса.
-int fd_ = -1;                                           // дескриптор устройства камеры
-int width_ = 256;                                       // ширина полезной части кадра
-int height_ = 196;                                      // полная высота буфера камеры
-std::vector<Buffer> buffers_;                           // список отображённых буферов
-std::string error_;                                     // последняя ошибка для интерфейса
+// Внутреннее состояние модуля вместо полей класса. static даёт этим переменным
+// внутреннюю связь: они видны только в этом файле.
+static int fd_ = -1;                                    // дескриптор устройства камеры
+static int width_ = 256;                                // ширина полезной части кадра
+static int height_ = 196;                               // полная высота буфера камеры
+static std::vector<Buffer> buffers_;                    // список отображённых буферов
+static std::string error_;                              // последняя ошибка для интерфейса
 
 // Обёртка над ioctl: повторяем вызов, если его прервал сигнал (EINTR).
-bool call(unsigned long request, void *arg)
+static bool call(unsigned long request, void *arg)
 {
     int rc = 0;                                         // результат системного вызова
     do {
@@ -38,7 +39,7 @@ bool call(unsigned long request, void *arg)
 }
 
 // Возвращаем буфер драйверу, чтобы камера записала в него следующий кадр.
-bool queue(std::size_t index)
+static bool queue(std::size_t index)
 {
     v4l2_buffer buffer {};                              // структура описания буфера
     buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;          // буфер для захвата видео
@@ -48,7 +49,7 @@ bool queue(std::size_t index)
 }
 
 // Запоминаем текст ошибки вместе с системным описанием errno.
-void fail(const char *message)
+static void fail(const char *message)
 {
     error_ = message;                                   // человекочитаемая причина
     error_ += ": ";                                     // разделитель
@@ -56,7 +57,7 @@ void fail(const char *message)
 }
 
 // Отвязываем от памяти все ранее отображённые буферы.
-void releaseBuffers()
+static void releaseBuffers()
 {
     for (Buffer &buffer : buffers_) {                   // проходим по всем буферам
         if (buffer.data != nullptr) {                   // если буфер был отображён
@@ -66,12 +67,8 @@ void releaseBuffers()
     buffers_.clear();                                   // очищаем список буферов
 }
 
-} // namespace
-
-namespace IRSensor {
-
 // Открываем устройство камеры, настраиваем формат, выделяем и запускаем буферы.
-bool start(const std::string &device)
+bool irsensorStart(const std::string &device)
 {
     fd_ = ::open(device.c_str(), O_RDWR | O_NONBLOCK);  // открываем без блокировки чтения
     if (fd_ == -1) {                                    // не удалось открыть устройство
@@ -135,7 +132,7 @@ bool start(const std::string &device)
 }
 
 // Забираем один готовый кадр, копируем его в frame и возвращаем буфер камере.
-bool readFrame(RawFrame &frame)
+bool irsensorReadFrame(RawFrame &frame)
 {
     v4l2_buffer buffer {};                              // сюда драйвер запишет данные о кадре
     buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;          // тип буфера видеозахвата
@@ -153,7 +150,7 @@ bool readFrame(RawFrame &frame)
 }
 
 // Останавливаем поток, отвязываем буферы и закрываем устройство.
-void stop()
+void irsensorStop()
 {
     if (fd_ == -1) {                                    // камера уже остановлена
         return;
@@ -165,8 +162,6 @@ void stop()
     fd_ = -1;                                           // помечаем камеру как закрытую
 }
 
-int width() { return width_; }                         // ширина кадра в пикселях
-int height() { return height_; }                       // высота буфера в строках
-const std::string &error() { return error_; }          // текст последней ошибки
-
-} // namespace IRSensor
+int irsensorWidth() { return width_; }                  // ширина кадра в пикселях
+int irsensorHeight() { return height_; }                // высота буфера в строках
+const std::string &irsensorError() { return error_; }   // текст последней ошибки

@@ -1,47 +1,46 @@
 #include "gui.h"
 
 #include <QLabel>
+#include <QPixmap>
 #include <QVBoxLayout>
 #include <QWidget>
 
 namespace {
-
-QWidget *window_ = nullptr;                             // само окно программы
-QLabel *status_ = nullptr;                              // строка состояния камеры
-QLabel *frame_ = nullptr;                               // строка с данными о кадре
-
-} // namespace
-
-namespace Gui {
-
-// Собираем окно из двух строк и вертикальной раскладки и показываем его.
-void create()
-{
-    window_ = new QWidget;                              // создаём окно (живёт до конца программы)
-    status_ = new QLabel(QStringLiteral("Camera: starting..."), window_); // начальное состояние
-    frame_ = new QLabel(QStringLiteral("No frame received"), window_);    // пока кадров нет
-
-    auto *layout = new QVBoxLayout(window_);            // вертикальная раскладка виджетов
-    layout->addWidget(status_);                         // сверху строка состояния камеры
-    layout->addWidget(frame_);                          // снизу данные о кадре
-
-    window_->setWindowTitle(QStringLiteral("RAW camera")); // заголовок окна
-    window_->resize(420, 120);                          // начальный размер окна
-    window_->show();                                    // показываем окно пользователю
+QWidget *window_ = nullptr;
+QLabel *status_ = nullptr;
+QLabel *frame_ = nullptr;
+QLabel *info_ = nullptr;
 }
 
-// Обновляем верхнюю строку — состояние камеры (запущена или ошибка).
-void setCameraStatus(const QString &text)
+void guiCreate()
+{
+    window_ = new QWidget;
+    status_ = new QLabel(QStringLiteral("Camera: starting..."), window_);
+    frame_ = new QLabel(QStringLiteral("No frame received"), window_);
+    info_ = new QLabel(window_);
+    frame_->setMinimumSize(512, 384);
+    frame_->setAlignment(Qt::AlignCenter);
+
+    auto *layout = new QVBoxLayout(window_);
+    layout->addWidget(status_);
+    layout->addWidget(frame_);
+    layout->addWidget(info_);
+
+    window_->setWindowTitle(QStringLiteral("RAW camera"));
+    window_->resize(560, 480);
+    window_->show();
+}
+
+void guiSetCameraStatus(const QString &text)
 {
     status_->setText(text);
 }
 
-// Показываем номер кадра и его размер в байтах в нижней строке.
-void showFrame(std::size_t bytes, std::size_t number)
+void guiShowFrame(const QImage &image, std::size_t bytes, std::size_t number)
 {
-    frame_->setText(QStringLiteral("Frame %1, %2 RAW bytes")
-                        .arg(number)
-                        .arg(bytes));
+    frame_->setPixmap(QPixmap::fromImage(image).scaled(
+        frame_->size(), Qt::KeepAspectRatio, Qt::FastTransformation));
+    info_->setText(QStringLiteral("Frame %1, %2 RAW bytes")
+                      .arg(static_cast<qulonglong>(number))
+                      .arg(static_cast<qulonglong>(bytes)));
 }
-
-} // namespace Gui
