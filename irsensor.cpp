@@ -28,6 +28,11 @@ static int height_ = 196;                               // полная высо
 static std::vector<Buffer> buffers_;                    // список отображённых буферов
 static std::string error_;                              // последняя ошибка для интерфейса
 
+static bool isDisconnectError(int error)
+{
+    return error == ENODEV || error == ENXIO || error == EIO || error == EBADF;
+}
+
 // Обёртка над ioctl: повторяем вызов, если его прервал сигнал (EINTR).
 static bool call(unsigned long request, void *arg)
 {
@@ -70,6 +75,7 @@ static void releaseBuffers()
 // Открываем устройство камеры, настраиваем формат, выделяем и запускаем буферы.
 bool irsensorStart(const std::string &device)
 {
+    irsensorStop();                                      // сбрасываем старое подключение
     fd_ = ::open(device.c_str(), O_RDWR | O_NONBLOCK);  // открываем без блокировки чтения
     if (fd_ == -1) {                                    // не удалось открыть устройство
         fail("open");
@@ -84,6 +90,7 @@ bool irsensorStart(const std::string &device)
     format.fmt.pix.field = V4L2_FIELD_NONE;             // без чересстрочной развёртки
     if (!call(VIDIOC_S_FMT, &format)) {                 // передаём формат драйверу
         fail("VIDIOC_S_FMT");
+        irsensorStop();
         return false;
     }
     width_ = static_cast<int>(format.fmt.pix.width);    // запоминаем принятую ширину
@@ -95,6 +102,7 @@ bool irsensorStart(const std::string &device)
     request.memory = V4L2_MEMORY_MMAP;                  // доступ через mmap
     if (!call(VIDIOC_REQBUFS, &request)) {              // просим драйвер выделить память
         fail("VIDIOC_REQBUFS");
+        irsensorStop();
         return false;
     }
 
@@ -106,6 +114,7 @@ bool irsensorStart(const std::string &device)
         buffer.index = static_cast<__u32>(index);       // номер буфера
         if (!call(VIDIOC_QUERYBUF, &buffer)) {          // узнаём размер и смещение буфера
             fail("VIDIOC_QUERYBUF");
+            irsensorStop();
             return false;
         }
 
@@ -115,10 +124,12 @@ bool irsensorStart(const std::string &device)
         if (buffers_[index].data == MAP_FAILED) {       // отображение памяти не удалось
             buffers_[index].data = nullptr;
             fail("mmap");
+            irsensorStop();
             return false;
         }
         if (!queue(index)) {                            // ставим буфер в очередь камеры
             fail("VIDIOC_QBUF");
+            irsensorStop();
             return false;
         }
     }
@@ -126,6 +137,7 @@ bool irsensorStart(const std::string &device)
     int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;             // тип запускаемого потока
     if (!call(VIDIOC_STREAMON, &type)) {                // включаем передачу кадров
         fail("VIDIOC_STREAMON");
+        irsensorStop();
         return false;
     }
     return true;                                        // камера успешно запущена
@@ -138,15 +150,30 @@ bool irsensorReadFrame(RawFrame &frame)
     buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;          // тип буфера видеозахвата
     buffer.memory = V4L2_MEMORY_MMAP;                   // способ работы с памятью
     if (!call(VIDIOC_DQBUF, &buffer)) {                 // пытаемся забрать готовый кадр
+        if (isDisconnectError(errno)) {
+            fail("Camera disconnected");
+            irsensorStop();
+        }
         return false;                                   // EAGAIN - кадра ещё нет, это нормально
     }
 
-    if (buffer.index < buffers_.size()) {               // индекс буфера корректен
-        const auto *data = static_cast<const std::uint8_t *>(buffers_[buffer.index].data);
-        frame.assign(data, data + buffer.bytesused);    // копируем весь сырой кадр в массив
+    if (buffer.index >= buffers_.size() ||
+        buffer.bytesused > buffers_[buffer.index].size) {
+        fail("Invalid camera frame");
+        irsensorStop();
+        return false;
     }
-    queue(buffer.index);                                // возвращаем буфер камере
-    return true;                                        // кадр получен
+
+    const auto *data = static_cast<const std::uint8_t *>(buffers_[buffer.index].data);
+    frame.assign(data, data + buffer.bytesused);        // копируем до возврата буфера
+    if (!queue(buffer.index)) {                         // только после копирования
+        if (isDisconnectError(errno)) {
+            fail("Camera disconnected");
+            irsensorStop();
+        }
+        return false;
+    }
+    return true;                                        // кадр целиком скопирован
 }
 
 // Останавливаем поток, отвязываем буферы и закрываем устройство.
@@ -165,3 +192,4 @@ void irsensorStop()
 int irsensorWidth() { return width_; }                  // ширина кадра в пикселях
 int irsensorHeight() { return height_; }                // высота буфера в строках
 const std::string &irsensorError() { return error_; }   // текст последней ошибки
+bool irsensorIsRunning() { return fd_ != -1; }          // состояние подключения
