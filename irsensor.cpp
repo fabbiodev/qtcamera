@@ -25,7 +25,6 @@ struct Buffer {
 static int fd_ = -1;                                    // дескриптор устройства камеры
 static int width_ = 256;                                // ширина полезной части кадра
 static int height_ = 196;                               // полная высота буфера камеры
-static std::size_t frameSize_ = 0;                      // ожидаемый размер полного кадра
 static std::vector<Buffer> buffers_;                    // список отображённых буферов
 static std::string error_;                              // последняя ошибка для интерфейса
 
@@ -96,10 +95,6 @@ bool irsensorStart(const std::string &device)
     }
     width_ = static_cast<int>(format.fmt.pix.width);    // запоминаем принятую ширину
     height_ = static_cast<int>(format.fmt.pix.height);  // и принятую высоту буфера
-    frameSize_ = format.fmt.pix.sizeimage;              // размер кадра, объявленный драйвером
-    if (frameSize_ == 0) {
-        frameSize_ = static_cast<std::size_t>(format.fmt.pix.bytesperline) * height_;
-    }
 
     v4l2_requestbuffers request {};                     // запрос на выделение буферов
     request.count = kBufferCount;                       // просим четыре буфера
@@ -162,22 +157,8 @@ bool irsensorReadFrame(RawFrame &frame)
         return false;                                   // EAGAIN - кадра ещё нет, это нормально
     }
 
-    if (buffer.index >= buffers_.size()) {
-        fail("Invalid camera buffer index");
-        irsensorStop();
-        return false;
-    }
-
-    if (buffer.flags & V4L2_BUF_FLAG_ERROR) {           // драйвер обнаружил ошибку USB-пакетов
-        if (!queue(buffer.index) && isDisconnectError(errno)) {
-            fail("Camera disconnected");
-            irsensorStop();
-        }
-        return false;                                   // и не показываем полосатый кадр
-    }
-
-    if (buffer.bytesused > buffers_[buffer.index].size ||
-        (frameSize_ != 0 && buffer.bytesused != frameSize_)) {
+    if (buffer.index >= buffers_.size() ||
+        buffer.bytesused > buffers_[buffer.index].size) {
         fail("Invalid camera frame");
         irsensorStop();
         return false;
