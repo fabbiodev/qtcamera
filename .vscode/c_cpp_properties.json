@@ -3,7 +3,7 @@
     "configurations": [
         {
             "name": "Linux ARM64",
-            "compilerPath": "/usr/bin/g++",
+            "compilerPath": "/usr/bin/c++",
             "compileCommands": "${workspaceFolder}/build/release/compile_commands.json",
             "cStandard": "c17",
             "cppStandard": "c++17",

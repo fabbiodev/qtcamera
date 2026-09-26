@@ -1,8 +1,6 @@
 build/
 .vs/
 .vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
 !.vscode/c_cpp_properties.json
 *.user
 *.pro.user
