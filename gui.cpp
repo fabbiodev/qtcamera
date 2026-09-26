@@ -12,13 +12,14 @@ QLabel *frame_ = nullptr;                               // изображени�
 QLabel *info_ = nullptr;                                // номер кадра и размер RAW-данных
 }
 
-void guiCreate()
+void guiCreate(const QString &windowTitle, int minFrameWidth, int minFrameHeight,
+               int windowWidth, int windowHeight)
 {
     window_ = new QWidget;                              // родитель для всех элементов окна
     status_ = new QLabel(QStringLiteral("Camera: starting..."), window_);
     frame_ = new QLabel(QStringLiteral("No frame received"), window_);
     info_ = new QLabel(window_);
-    frame_->setMinimumSize(512, 384);                   // не сжимаем область изображения слишком сильно
+    frame_->setMinimumSize(minFrameWidth, minFrameHeight); // размеры из main.cpp
     frame_->setAlignment(Qt::AlignCenter);              // центрируем кадр в свободном месте
 
     auto *layout = new QVBoxLayout(window_);            // вертикальное расположение элементов
@@ -26,8 +27,8 @@ void guiCreate()
     layout->addWidget(frame_);                           // изображение по центру
     layout->addWidget(info_);                            // служебная строка снизу
 
-    window_->setWindowTitle(QStringLiteral("RAW camera")); // заголовок окна
-    window_->resize(560, 480);                           // начальный размер, дальше окно можно менять
+    window_->setWindowTitle(windowTitle);                // заголовок из main.cpp
+    window_->resize(windowWidth, windowHeight);          // начальный размер, дальше окно можно менять
     window_->show();                                     // показываем окно пользователю
 }
 

@@ -7,12 +7,30 @@
 #include <QElapsedTimer>
 #include <QTimer>
 
+#include <string>
+
 int main(int argc, char *argv[])
 {
-    QApplication app(argc, argv);                       // основной цикл и объекты Qt
-    guiCreate();                                         // создаём окно до запуска камеры
+    // Все параметры, которые можно менять без поиска по модулям программы.
+    const std::string device = "/dev/video0";           // устройство камеры V4L2
+    const int requestedWidth = 256;                      // ширина RAW-кадра, запрашиваемая у камеры
+    const int requestedHeight = 196;                     // высота полного RAW-буфера
+    const int captureBufferCount = 4;                    // число V4L2-буферов в очереди
+    const int imageHeight = 192;                         // число строк, выводимых в изображение
+    const int blackLevel = 4700;                         // RAW-значение чёрного цвета
+    const int whiteLevel = 5500;                         // RAW-значение белого цвета
+    const int timerIntervalMs = 10;                      // период проверки готового кадра
+    const int reconnectIntervalMs = 1000;                // пауза между попытками переподключения
+    const int minFrameWidth = 512;                       // минимальная область вывода кадра
+    const int minFrameHeight = 384;
+    const int windowWidth = 560;                         // начальная ширина окна
+    const int windowHeight = 480;
+    const QString windowTitle = QStringLiteral("RAW camera");
 
-    if (irsensorStart()) {                              // пробуем открыть /dev/video0
+    QApplication app(argc, argv);                       // основной цикл и объекты Qt
+    guiCreate(windowTitle, minFrameWidth, minFrameHeight, windowWidth, windowHeight);
+
+    if (irsensorStart(device, requestedWidth, requestedHeight, captureBufferCount)) {
         guiSetCameraStatus(QStringLiteral("Camera: RAW mode %1 x %2")
                                .arg(irsensorWidth()).arg(irsensorHeight()));
     } else {
@@ -26,11 +44,11 @@ int main(int argc, char *argv[])
     std::size_t frameNumber = 0;                        // порядковый номер показанного кадра
     QObject::connect(&timer, &QTimer::timeout, [&] {
         if (!irsensorIsRunning()) {                     // камера отключена или поток остановлен
-            if (reconnectTimer.elapsed() < 1000) {      // пробуем восстановить не чаще раза в секунду
+            if (reconnectTimer.elapsed() < reconnectIntervalMs) { // не чаще заданного интервала
                 return;
             }
             reconnectTimer.restart();
-            if (irsensorStart()) {                      // повторно открываем устройство камеры
+            if (irsensorStart(device, requestedWidth, requestedHeight, captureBufferCount)) {
                 guiSetCameraStatus(QStringLiteral("Camera: reconnected, RAW mode %1 x %2")
                                        .arg(irsensorWidth()).arg(irsensorHeight()));
             } else {
@@ -49,11 +67,12 @@ int main(int argc, char *argv[])
             return;
         }
 
-        const QImage image = dataProcessingConvertRawFrame(frame); // RAW -> градации серого
+        const QImage image = dataProcessingConvertRawFrame( // RAW -> градации серого
+            frame, irsensorWidth(), irsensorHeight(), imageHeight, blackLevel, whiteLevel);
         videoStreamSubmitRawFrame(frame);               // передаём исходные данные в модуль потока
         guiShowFrame(image, frame.size(), ++frameNumber); // выводим кадр в окно
     });
-    timer.start(10);                                    // проверка очереди V4L2 каждые 10 мс
+    timer.start(timerIntervalMs);                        // проверка очереди V4L2 с заданным периодом
 
     const int result = app.exec();                       // работаем до закрытия окна
     irsensorStop();                                      // освобождаем V4L2-буферы перед выходом

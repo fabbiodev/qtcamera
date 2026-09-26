@@ -8,12 +8,6 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-// Константы модуля. constexpr на уровне файла уже имеет внутреннюю связь,
-// поэтому namespace не нужен.
-constexpr int kBufferCount = 4;                         // сколько буферов просим у драйвера
-constexpr int kFrameWidth = 256;                        // ширина полезной части кадра
-constexpr int kFrameRows = 196;                         // полная высота буфера камеры
-
 // Описание одного буфера, отображённого в память нашей программы.
 struct Buffer {
     void *data = nullptr;                               // адрес памяти буфера
@@ -23,8 +17,8 @@ struct Buffer {
 // Внутреннее состояние модуля вместо полей класса. static даёт этим переменным
 // внутреннюю связь: они видны только в этом файле.
 static int fd_ = -1;                                    // дескриптор устройства камеры
-static int width_ = 256;                                // ширина полезной части кадра
-static int height_ = 196;                               // полная высота буфера камеры
+static int width_ = 0;                                  // принятая драйвером ширина кадра
+static int height_ = 0;                                 // принятая драйвером высота буфера
 static std::vector<Buffer> buffers_;                    // список отображённых буферов
 static std::string error_;                              // последняя ошибка для интерфейса
 
@@ -73,8 +67,13 @@ static void releaseBuffers()
 }
 
 // Открываем устройство камеры, настраиваем формат, выделяем и запускаем буферы.
-bool irsensorStart(const std::string &device)
+bool irsensorStart(const std::string &device, int requestedWidth, int requestedHeight,
+                   int bufferCount)
 {
+    if (requestedWidth <= 0 || requestedHeight <= 0 || bufferCount <= 0) {
+        error_ = "Invalid camera configuration";
+        return false;
+    }
     irsensorStop();                                      // сбрасываем старое подключение
     fd_ = ::open(device.c_str(), O_RDWR | O_NONBLOCK);  // открываем без блокировки чтения
     if (fd_ == -1) {                                    // не удалось открыть устройство
@@ -84,8 +83,8 @@ bool irsensorStart(const std::string &device)
 
     v4l2_format format {};                              // настройки формата кадра
     format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;          // режим видеозахвата
-    format.fmt.pix.width = kFrameWidth;                 // ширина 256 пикселей
-    format.fmt.pix.height = kFrameRows;                 // высота буфера 196 строк
+    format.fmt.pix.width = static_cast<__u32>(requestedWidth);   // ширина из main.cpp
+    format.fmt.pix.height = static_cast<__u32>(requestedHeight); // высота из main.cpp
     format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;     // транспортный формат USB-видео
     format.fmt.pix.field = V4L2_FIELD_NONE;             // без чересстрочной развёртки
     if (!call(VIDIOC_S_FMT, &format)) {                 // передаём формат драйверу
@@ -97,7 +96,7 @@ bool irsensorStart(const std::string &device)
     height_ = static_cast<int>(format.fmt.pix.height);  // и принятую высоту буфера
 
     v4l2_requestbuffers request {};                     // запрос на выделение буферов
-    request.count = kBufferCount;                       // просим четыре буфера
+    request.count = static_cast<__u32>(bufferCount);    // число буферов из main.cpp
     request.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;         // буферы для видеозахвата
     request.memory = V4L2_MEMORY_MMAP;                  // доступ через mmap
     if (!call(VIDIOC_REQBUFS, &request)) {              // просим драйвер выделить память

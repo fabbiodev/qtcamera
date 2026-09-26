@@ -11,7 +11,8 @@
 // Один кадр целиком — это массив байт, как его отдаёт камера.
 using RawFrame = std::vector<std::uint8_t>;
 
-bool irsensorStart(const std::string &device = "/dev/video0"); // открыть и запустить камеру
+bool irsensorStart(const std::string &device, int requestedWidth, int requestedHeight,
+                   int bufferCount);                            // открыть и запустить камеру
 bool irsensorReadFrame(RawFrame &frame);                       // прочитать один готовый кадр
 void irsensorStop();                                           // остановить и освободить ресурсы
 bool irsensorIsRunning();                                      // камера подключена и поток запущен
