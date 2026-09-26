@@ -5,6 +5,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+using namespace std;
+
 namespace {
 QWidget *window_ = nullptr;                             // главное окно программы
 QLabel *status_ = nullptr;                              // строка состояния камеры
@@ -37,7 +39,7 @@ void guiSetCameraStatus(const QString &text)
     status_->setText(text);                              // обновляем текст без пересоздания виджета
 }
 
-void guiShowFrame(const QImage &image, std::size_t bytes, std::size_t number)
+void guiShowFrame(const QImage &image, size_t bytes, size_t number)
 {
     frame_->setPixmap(QPixmap::fromImage(image).scaled( // масштабируем только для вывода на экран
         frame_->size(), Qt::KeepAspectRatio, Qt::FastTransformation)); // без изменения исходного QImage

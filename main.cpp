@@ -9,10 +9,12 @@
 
 #include <string>
 
+using namespace std;
+
 int main(int argc, char *argv[])
 {
     // Все параметры, которые можно менять без поиска по модулям программы.
-    const std::string device = "/dev/video0";           // устройство камеры V4L2
+    const string device = "/dev/video0";                // устройство камеры V4L2
     const int requestedWidth = 256;                      // ширина RAW-кадра, запрашиваемая у камеры
     const int requestedHeight = 196;                     // высота полного RAW-буфера
     const int captureBufferCount = 4;                    // число V4L2-буферов в очереди
@@ -41,7 +43,7 @@ int main(int argc, char *argv[])
     QTimer timer;                                       // регулярно проверяем наличие нового кадра
     QElapsedTimer reconnectTimer;                       // ограничивает частоту повторных подключений
     reconnectTimer.start();                             // начинаем отсчёт для первой попытки
-    std::size_t frameNumber = 0;                        // порядковый номер показанного кадра
+    size_t frameNumber = 0;                             // порядковый номер показанного кадра
     QObject::connect(&timer, &QTimer::timeout, [&] {
         if (!irsensorIsRunning()) {                     // камера отключена или поток остановлен
             if (reconnectTimer.elapsed() < reconnectIntervalMs) { // не чаще заданного интервала

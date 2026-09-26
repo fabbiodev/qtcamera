@@ -8,10 +8,12 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+using namespace std;
+
 // Описание одного буфера, отображённого в память нашей программы.
 struct Buffer {
     void *data = nullptr;                               // адрес памяти буфера
-    std::size_t size = 0;                               // размер выделенной области
+    size_t size = 0;                                    // размер выделенной области
 };
 
 // Внутреннее состояние модуля вместо полей класса. static даёт этим переменным
@@ -19,8 +21,8 @@ struct Buffer {
 static int fd_ = -1;                                    // дескриптор устройства камеры
 static int width_ = 0;                                  // принятая драйвером ширина кадра
 static int height_ = 0;                                 // принятая драйвером высота буфера
-static std::vector<Buffer> buffers_;                    // список отображённых буферов
-static std::string error_;                              // последняя ошибка для интерфейса
+static vector<Buffer> buffers_;                         // список отображённых буферов
+static string error_;                                   // последняя ошибка для интерфейса
 
 static bool isDisconnectError(int error)
 {
@@ -38,7 +40,7 @@ static bool call(unsigned long request, void *arg)
 }
 
 // Возвращаем буфер драйверу, чтобы камера записала в него следующий кадр.
-static bool queue(std::size_t index)
+static bool queue(size_t index)
 {
     v4l2_buffer buffer {};                              // структура описания буфера
     buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;          // буфер для захвата видео
@@ -52,7 +54,7 @@ static void fail(const char *message)
 {
     error_ = message;                                   // человекочитаемая причина
     error_ += ": ";                                     // разделитель
-    error_ += std::strerror(errno);                     // системное описание кода ошибки
+    error_ += strerror(errno);                          // системное описание кода ошибки
 }
 
 // Отвязываем от памяти все ранее отображённые буферы.
@@ -67,7 +69,7 @@ static void releaseBuffers()
 }
 
 // Открываем устройство камеры, настраиваем формат, выделяем и запускаем буферы.
-bool irsensorStart(const std::string &device, int requestedWidth, int requestedHeight,
+bool irsensorStart(const string &device, int requestedWidth, int requestedHeight,
                    int bufferCount)
 {
     if (requestedWidth <= 0 || requestedHeight <= 0 || bufferCount <= 0) {
@@ -106,7 +108,7 @@ bool irsensorStart(const std::string &device, int requestedWidth, int requestedH
     }
 
     buffers_.resize(request.count);                     // столько же буферов в программе
-    for (std::size_t index = 0; index < buffers_.size(); ++index) {
+    for (size_t index = 0; index < buffers_.size(); ++index) {
         v4l2_buffer buffer {};                          // описание одного буфера
         buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;      // тип - видеозахват
         buffer.memory = V4L2_MEMORY_MMAP;               // память драйвера
@@ -163,7 +165,7 @@ bool irsensorReadFrame(RawFrame &frame)
         return false;
     }
 
-    const auto *data = static_cast<const std::uint8_t *>(buffers_[buffer.index].data);
+    const auto *data = static_cast<const uint8_t *>(buffers_[buffer.index].data);
     frame.assign(data, data + buffer.bytesused);        // копируем до возврата буфера
     if (!queue(buffer.index)) {                         // только после копирования
         if (isDisconnectError(errno)) {
@@ -190,5 +192,5 @@ void irsensorStop()
 
 int irsensorWidth() { return width_; }                  // ширина кадра в пикселях
 int irsensorHeight() { return height_; }                // высота буфера в строках
-const std::string &irsensorError() { return error_; }   // текст последней ошибки
+const string &irsensorError() { return error_; }        // текст последней ошибки
 bool irsensorIsRunning() { return fd_ != -1; }          // состояние подключения
