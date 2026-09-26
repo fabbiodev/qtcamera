@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     const int imageHeight = 192;                         // число строк, выводимых в изображение
     const int blackLevel = 4700;                         // RAW-значение чёрного цвета
     const int whiteLevel = 5500;                         // RAW-значение белого цвета
-    const int timerIntervalMs = 10;                      // период проверки готового кадра
+    const int timerIntervalMs = 37;                      // период проверки готового кадра / интервал запуска таймера
     const int reconnectIntervalMs = 1000;                // пауза между попытками переподключения
     const int minFrameWidth = 512;                       // минимальная область вывода кадра
     const int minFrameHeight = 384;
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
         const QImage image = dataProcessingConvertRawFrame( // RAW -> градации серого
             frame, irsensorWidth(), irsensorHeight(), imageHeight, blackLevel, whiteLevel);
         videoStreamSubmitRawFrame(frame);               // передаём исходные данные в модуль потока
-        guiShowFrame(image, frame.size(), ++frameNumber); // выводим кадр в окно
+        guiShowFrame(image, frame.size() * 2, ++frameNumber); // выводим кадр в окно
     });
     timer.start(timerIntervalMs);                        // проверка очереди V4L2 с заданным периодом
 
