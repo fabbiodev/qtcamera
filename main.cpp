@@ -9,10 +9,10 @@
 
 int main(int argc, char *argv[])
 {
-    QApplication app(argc, argv);
-    guiCreate();
+    QApplication app(argc, argv);                       // основной цикл и объекты Qt
+    guiCreate();                                         // создаём окно до запуска камеры
 
-    if (irsensorStart()) {
+    if (irsensorStart()) {                              // пробуем открыть /dev/video0
         guiSetCameraStatus(QStringLiteral("Camera: RAW mode %1 x %2")
                                .arg(irsensorWidth()).arg(irsensorHeight()));
     } else {
@@ -20,17 +20,17 @@ int main(int argc, char *argv[])
                                .arg(QString::fromStdString(irsensorError())));
     }
 
-    QTimer timer;
-    QElapsedTimer reconnectTimer;
-    reconnectTimer.start();
-    std::size_t frameNumber = 0;
+    QTimer timer;                                       // регулярно проверяем наличие нового кадра
+    QElapsedTimer reconnectTimer;                       // ограничивает частоту повторных подключений
+    reconnectTimer.start();                             // начинаем отсчёт для первой попытки
+    std::size_t frameNumber = 0;                        // порядковый номер показанного кадра
     QObject::connect(&timer, &QTimer::timeout, [&] {
-        if (!irsensorIsRunning()) {
-            if (reconnectTimer.elapsed() < 1000) {
+        if (!irsensorIsRunning()) {                     // камера отключена или поток остановлен
+            if (reconnectTimer.elapsed() < 1000) {      // пробуем восстановить не чаще раза в секунду
                 return;
             }
             reconnectTimer.restart();
-            if (irsensorStart()) {
+            if (irsensorStart()) {                      // повторно открываем устройство камеры
                 guiSetCameraStatus(QStringLiteral("Camera: reconnected, RAW mode %1 x %2")
                                        .arg(irsensorWidth()).arg(irsensorHeight()));
             } else {
@@ -40,8 +40,8 @@ int main(int argc, char *argv[])
             return;
         }
 
-        RawFrame frame;
-        if (!irsensorReadFrame(frame)) {
+        RawFrame frame;                                 // сюда копируется очередной полный RAW-кадр
+        if (!irsensorReadFrame(frame)) {                // кадра может ещё не быть или камера отключилась
             if (!irsensorIsRunning()) {
                 reconnectTimer.restart();
                 guiSetCameraStatus(QStringLiteral("Camera disconnected; waiting for reconnect..."));
@@ -49,13 +49,13 @@ int main(int argc, char *argv[])
             return;
         }
 
-        const QImage image = dataProcessingConvertRawFrame(frame);
-        videoStreamSubmitRawFrame(frame);
-        guiShowFrame(image, frame.size(), ++frameNumber);
+        const QImage image = dataProcessingConvertRawFrame(frame); // RAW -> градации серого
+        videoStreamSubmitRawFrame(frame);               // передаём исходные данные в модуль потока
+        guiShowFrame(image, frame.size(), ++frameNumber); // выводим кадр в окно
     });
-    timer.start(10);
+    timer.start(10);                                    // проверка очереди V4L2 каждые 10 мс
 
-    const int result = app.exec();
-    irsensorStop();
+    const int result = app.exec();                       // работаем до закрытия окна
+    irsensorStop();                                      // освобождаем V4L2-буферы перед выходом
     return result;
 }

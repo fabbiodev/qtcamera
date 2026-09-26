@@ -1,5 +1,7 @@
 build/
 .vs/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 *.user
 *.pro.user
