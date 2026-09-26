@@ -5,13 +5,17 @@
 #include <string>
 #include <vector>
 
+using std::string;
+using std::uint8_t;
+using std::vector;
+
 // Работа с камерой без класса и без namespace: просто набор свободных функций
 // с префиксом irsensor. Внутреннее состояние (дескриптор, буферы) спрятано в .cpp.
 
 // Один кадр целиком — это массив байт, как его отдаёт камера.
-using RawFrame = std::vector<std::uint8_t>;
+using RawFrame = vector<uint8_t>;
 
-bool irsensorStart(const std::string &device, int requestedWidth, int requestedHeight,
+bool irsensorStart(const string &device, int requestedWidth, int requestedHeight,
                    int bufferCount);                            // открыть и запустить камеру
 bool irsensorReadFrame(RawFrame &frame);                       // прочитать один готовый кадр
 void irsensorStop();                                           // остановить и освободить ресурсы
@@ -19,4 +23,4 @@ bool irsensorIsRunning();                                      // камера �
 
 int irsensorWidth();                                           // ширина кадра в пикселях
 int irsensorHeight();                                          // высота буфера в строках
-const std::string &irsensorError();                            // текст последней ошибки
+const string &irsensorError();                                  // текст последней ошибки
