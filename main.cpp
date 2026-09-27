@@ -20,13 +20,13 @@ int main(int argc, char *argv[])
     const int captureBufferCount = 4;                    // число V4L2-буферов в очереди
     const int imageHeight = 192;                         // число строк, выводимых в изображение
     const int blackLevel = 4700;                         // RAW-значение чёрного цвета
-    const int whiteLevel = 5500;                         // RAW-значение белого цвета
-    const int timerIntervalMs = 37;                      // период проверки готового кадра / интервал запуска таймера
+    const int whiteLevel = 5300;                         // RAW-значение белого цвета
+    const int timerIntervalMs = 38;                      // период проверки готового кадра / интервал запуска таймера
     const int reconnectIntervalMs = 1000;                // пауза между попытками переподключения
-    const int minFrameWidth = 512;                       // минимальная область вывода кадра
-    const int minFrameHeight = 384;
-    const int windowWidth = 560;                         // начальная ширина окна
-    const int windowHeight = 480;
+    const int minFrameWidth = 2 * 512;                   // минимальная область вывода кадра
+    const int minFrameHeight = 2 * 384;
+    const int windowWidth = 2 * 560;                     // начальная ширина окна
+    const int windowHeight = 2 * 480;
     const QString windowTitle = QStringLiteral("RAW camera");
 
     QApplication app(argc, argv);                       // основной цикл и объекты Qt

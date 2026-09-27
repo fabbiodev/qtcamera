@@ -28,10 +28,32 @@ QImage dataProcessingConvertRawFrame(const RawFrame &frame, int width, int rawHe
             const uchar level = static_cast<uchar>((clipped - blackLevel) * 255 /
                                                    (whiteLevel - blackLevel)); // чёрный..белый -> 0..255
             uchar *pixel = row + x * bytesPerRgbPixel; // начало RGB-пикселя в строке
-            pixel[0] = level;                           // красный канал
-            pixel[1] = level;                           // зелёный канал
-            pixel[2] = level;                           // синий канал
+
+            Color_skin_1(pixel, level);                 // красим пиксель по схеме "Радуга"
         }
     }
     return image;
+}
+
+// Покраска пикселей по схеме "Радуга".
+// Функция получает адрес RGB-пикселя и уровень яркости от 0 до 255.
+inline void Color_skin_1(uchar *pixel, uchar level)
+{
+    if (level < 64) {
+        pixel[0] = 0;                                   // R
+        pixel[1] = level * 4;                           // G
+        pixel[2] = 255;                                 // B
+    } else if (level < 128) {
+        pixel[0] = 0;                                   // R
+        pixel[1] = 255;                                 // G
+        pixel[2] = 255 - (level - 64) * 4;              // B
+    } else if (level < 192) {
+        pixel[0] = (level - 128) * 4;                   // R
+        pixel[1] = 255;                                 // G
+        pixel[2] = 0;                                   // B
+    } else {
+        pixel[0] = 255;                                 // R
+        pixel[1] = 255 - (level - 192) * 4;             // G
+        pixel[2] = 0;                                   // B
+    }
 }
